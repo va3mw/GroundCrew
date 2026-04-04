@@ -173,8 +173,19 @@ KEYBOARD SHORTCUTS
 
 LICENSE
 -------
-  Personal / amateur radio use.
-  © 2026 Michael Walker VA3MW
+  No open-source license is granted.
+
+  This software is released for personal and amateur radio use only.
+  No permission is granted to use, copy, modify, or distribute this
+  software for commercial purposes or as part of any commercial product
+  or service.
+
+  You are welcome to:
+    - Run it for your own amateur radio station
+    - Share it within the amateur radio community (with attribution)
+    - Fork and adapt it for personal, non-commercial use
+
+  © 2026 Michael Walker VA3MW — All rights reserved.
 """
 
 import json
