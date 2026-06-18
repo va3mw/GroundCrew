@@ -238,6 +238,7 @@ HTTP requests are made **on-demand only** — there is no background polling thr
 | 🔇 Mute Voice / 🔔 Unmute Voice | Toggle permanent voice mute |
 | ⏱ Mute 30 min | Mute for 30 minutes then automatically re-arm |
 | 🎯 Manual | Open the manual antenna control panel |
+| 🌐 CSN SAT | Open the CSN SAT web interface in your default browser |
 | ⚙ Settings | Open the configuration dialog |
 
 ### Keyboard Shortcuts
