@@ -153,6 +153,8 @@ After `idle_timeout` (default 5 min) with no new SAT events, the antenna is auto
 
 Click **🎯 Manual** in the button bar to open the manual control panel. This lets you point the antenna to any bearing at any time without waiting for the next wind-tracking cycle.
 
+![Manual Antenna Control Panel](manual_control.jpg)
+
 ### Three ways to set a bearing
 
 **1. Compass rose**
