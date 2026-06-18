@@ -248,6 +248,7 @@ Secondary and configuration actions are in the menu bar.
 | Antenna | ▶ Resume | Resume automatic wind updates |
 | Antenna | 🎯 Manual Control… | Open the manual antenna control panel |
 | Antenna | 🌐 Open CSN SAT UI | Open the CSN SAT web interface in your browser |
+| Antenna | 📡 PSK Reporter | Open PSK Reporter map in your browser |
 | Voice | 🔊 Test Voice | Speak a test phrase — always fires, ignores mute |
 | Voice | 🔇 Mute / Unmute | Toggle permanent voice mute |
 | Voice | ⏱ Mute 30 Minutes | Mute for 30 minutes then automatically re-arm |
