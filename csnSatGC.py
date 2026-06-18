@@ -551,7 +551,10 @@ class App:
         self._divider1 = tk.Frame(self.root, bg=C_BORDER, height=1)
         self._divider1.pack(fill="x", padx=12)
 
-        # Control buttons
+        # ── Menu bar ──────────────────────────────────────────────────────────
+        self._build_menubar()
+
+        # Control buttons — operational controls only; secondary actions live in menus
         self._btn_row = tk.Frame(self.root, bg=C_BG, pady=8)
         self._btn_row.pack(fill="x", padx=12)
         btn_row = self._btn_row
@@ -559,18 +562,11 @@ class App:
                      self._do_pause).pack(side="left", padx=(0, 8))
         self._button(btn_row, "▶   RESUME",   "#0f2e0f", C_GREEN,
                      self._do_resume).pack(side="left", padx=(0, 8))
-        self._button(btn_row, "🖥  Shortcut",  "#1a1a2e", C_CYAN,
-                     self._create_shortcut).pack(side="left")
 
-        # ── Thin vertical rule between antenna controls and voice controls ────
         tk.Frame(btn_row, bg=C_BORDER, width=1).pack(
             side="left", fill="y", padx=16, pady=4)
 
-        # Test voice — always fires regardless of mute state
-        self._button(btn_row, "🔊  Test Voice", "#0d2a1a", C_GREEN,
-                     self._do_test_voice).pack(side="left", padx=(0, 8))
-
-        # Mute / Unmute toggle — label + colour change with state
+        # Mute / Unmute toggle
         self._btn_mute_var = tk.StringVar(value="🔇  Mute Voice")
         self._btn_mute = tk.Button(
             btn_row, textvariable=self._btn_mute_var,
@@ -581,19 +577,8 @@ class App:
             relief="flat", width=14, pady=7, cursor="hand2", bd=0)
         self._btn_mute.pack(side="left", padx=(0, 8))
 
-        # Timed mute — 30 min then auto re-arm
         self._button(btn_row, "⏱  Mute 30 min", "#2a1a00", C_ORANGE,
                      self._do_mute_30min).pack(side="left")
-
-        # Settings dialog
-        tk.Frame(btn_row, bg=C_BORDER, width=1).pack(
-            side="left", fill="y", padx=16, pady=4)
-        self._button(btn_row, "🎯  Manual",   "#1a2a0a", C_GREEN,
-                     self._do_manual_control).pack(side="left", padx=(0, 8))
-        self._button(btn_row, "🌐  CSN SAT",  "#0d1f2e", C_CYAN,
-                     self._do_open_sat).pack(side="left", padx=(0, 8))
-        self._button(btn_row, "⚙  Settings", "#1a1a2a", "#7aaabf",
-                     self._do_settings).pack(side="left", padx=(0, 8))
 
         for key in ("<p>", "<P>"):
             self.root.bind(key, lambda _: self._do_pause())
@@ -685,6 +670,87 @@ class App:
         self._log_box.tag_config("tx",       foreground="#8888cc")
         self._log_box.tag_config("sat",      foreground="#f0a050")  # CSNTracker events
         self._log_box.tag_config("faos",     foreground="#e0c060")  # FAOS / TTS events
+
+    def _build_menubar(self):
+        menubar = tk.Menu(self.root, bg=C_BG, fg=C_TEXT,
+                          activebackground=C_HDR, activeforeground="white",
+                          relief="flat", bd=0)
+        self.root.config(menu=menubar)
+
+        # ── Antenna ───────────────────────────────────────────────────────────
+        m_ant = tk.Menu(menubar, tearoff=0,
+                        bg=C_BG, fg=C_TEXT,
+                        activebackground=C_HDR, activeforeground="white")
+        menubar.add_cascade(label="Antenna", menu=m_ant)
+        m_ant.add_command(label="⏸   Pause",           command=self._do_pause)
+        m_ant.add_command(label="▶   Resume",           command=self._do_resume)
+        m_ant.add_separator()
+        m_ant.add_command(label="🎯  Manual Control…",  command=self._do_manual_control)
+        m_ant.add_command(label="🌐  Open CSN SAT UI",  command=self._do_open_sat)
+
+        # ── Voice ─────────────────────────────────────────────────────────────
+        m_voice = tk.Menu(menubar, tearoff=0,
+                          bg=C_BG, fg=C_TEXT,
+                          activebackground=C_HDR, activeforeground="white")
+        menubar.add_cascade(label="Voice", menu=m_voice)
+        m_voice.add_command(label="🔊  Test Voice",     command=self._do_test_voice)
+        m_voice.add_command(label="🔇  Mute / Unmute",  command=self._do_mute_toggle)
+        m_voice.add_command(label="⏱  Mute 30 Minutes", command=self._do_mute_30min)
+
+        # ── Tools ─────────────────────────────────────────────────────────────
+        m_tools = tk.Menu(menubar, tearoff=0,
+                          bg=C_BG, fg=C_TEXT,
+                          activebackground=C_HDR, activeforeground="white")
+        menubar.add_cascade(label="Tools", menu=m_tools)
+        m_tools.add_command(label="⚙   Settings…",          command=self._do_settings)
+        m_tools.add_command(label="🖥   Create Desktop Shortcut", command=self._create_shortcut)
+
+        # ── Help ──────────────────────────────────────────────────────────────
+        m_help = tk.Menu(menubar, tearoff=0,
+                         bg=C_BG, fg=C_TEXT,
+                         activebackground=C_HDR, activeforeground="white")
+        menubar.add_cascade(label="Help", menu=m_help)
+        m_help.add_command(label="About S.A.T. GroundCrew…", command=self._do_about)
+        m_help.add_separator()
+        m_help.add_command(label="Exit",                      command=self._on_close)
+
+    def _do_about(self):
+        dlg = tk.Toplevel(self.root)
+        dlg.title("About S.A.T. GroundCrew")
+        dlg.configure(bg=C_BG)
+        dlg.resizable(False, False)
+        dlg.grab_set()
+        dlg.lift()
+
+        tk.Label(dlg, text=f"S.A.T. GroundCrew  v{VERSION}",
+                 bg=C_BG, fg=C_TEXT,
+                 font=("Segoe UI", 14, "bold")).pack(padx=32, pady=(24, 2))
+        tk.Label(dlg, text="Satellite Antenna Tracker",
+                 bg=C_BG, fg=C_DIM,
+                 font=("Segoe UI", 10)).pack()
+        tk.Frame(dlg, bg=C_BORDER, height=1).pack(fill="x", padx=32, pady=16)
+        tk.Label(dlg, text="Michael Walker  ·  VA3MW  ·  Toronto, Ontario",
+                 bg=C_BG, fg=C_TEXT,
+                 font=("Segoe UI", 10)).pack()
+        link = tk.Label(dlg, text="github.com/va3mw/GroundCrew",
+                        bg=C_BG, fg=C_CYAN,
+                        font=("Segoe UI", 9, "underline"), cursor="hand2")
+        link.pack(pady=(4, 0))
+        link.bind("<Button-1>",
+                  lambda _: webbrowser.open("https://github.com/va3mw/GroundCrew"))
+        tk.Frame(dlg, bg=C_BORDER, height=1).pack(fill="x", padx=32, pady=16)
+        tk.Label(dlg,
+                 text="Personal / amateur radio use only.\n© 2026 Michael Walker VA3MW",
+                 bg=C_BG, fg=C_DIM,
+                 font=("Segoe UI", 8), justify="center").pack()
+        tk.Button(dlg, text="Close", command=dlg.destroy,
+                  bg=C_PANEL, fg=C_DIM,
+                  activebackground=C_PANEL, activeforeground=C_TEXT,
+                  font=("Segoe UI", 10), relief="flat",
+                  pady=6, cursor="hand2", bd=0, width=10
+                  ).pack(pady=(16, 20))
+        dlg.bind("<Return>", lambda _: dlg.destroy())
+        dlg.bind("<Escape>", lambda _: dlg.destroy())
 
     def _toggle_compact(self):
         """
