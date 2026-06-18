@@ -590,6 +590,8 @@ class App:
             side="left", fill="y", padx=16, pady=4)
         self._button(btn_row, "🎯  Manual",   "#1a2a0a", C_GREEN,
                      self._do_manual_control).pack(side="left", padx=(0, 8))
+        self._button(btn_row, "🌐  CSN SAT",  "#0d1f2e", C_CYAN,
+                     self._do_open_sat).pack(side="left", padx=(0, 8))
         self._button(btn_row, "⚙  Settings", "#1a1a2a", "#7aaabf",
                      self._do_settings).pack(side="left", padx=(0, 8))
 
@@ -1598,6 +1600,12 @@ class App:
                   width=10).pack(side="right")
 
         dlg.wait_window()
+
+    def _do_open_sat(self):
+        """Open the CSN SAT web interface in the default browser."""
+        url = f"http://{self._sat_host}"
+        self._log("INFO", f"[control] Opening CSN SAT web UI → {url}")
+        webbrowser.open(url)
 
     def _update_mute_ui(self, muted: bool, timed: bool, expire_epoch: float = 0.0):
         """
