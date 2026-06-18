@@ -4,7 +4,7 @@
 
 **Author:** Michael Walker &nbsp;·&nbsp; VA3MW &nbsp;·&nbsp; Toronto, Ontario, Canada
 **Built with:** [Claude](https://claude.ai) (Anthropic) — AI pair programmer
-**Version:** 2.3 &nbsp;·&nbsp; 2026-03-19
+**Version:** 2.4 &nbsp;·&nbsp; 2026-06-18
 **File:** `csnSatGC.py`
 **License** Personal / amateur radio use. © 2026 Michael Walker VA3MW
 
@@ -20,6 +20,7 @@ S.A.T. GroundCrew is a single-window Python application that keeps your **CSN SA
 | **Park Position** | Returns the antenna to the CSN SAT park position when wind is below threshold |
 | **Voice Alerts** | Announces each approaching satellite pass by name and time-to-AOS via Windows Text-to-Speech |
 | **SAT Integration** | Listens on UDP port 9932 for CSNTracker broadcasts and backs off the moment a pass begins |
+| **Manual Control** | Point the antenna to any bearing via compass, typed heading, or grid square calculation |
 
 ---
 
@@ -30,6 +31,7 @@ S.A.T. GroundCrew is a single-window Python application that keeps your **CSN SA
 - **Park on calm** — when wind is below threshold, queries the CSN SAT for its configured park position (`/status`) and returns the antenna there; keepalive is suppressed while parked so the CSN SAT retains full control
 - **Satellite-aware backoff** — honours `SAT,START TRACK`, `SAT,AOS`, and `SAT,LOS` events so the antenna is never repositioned during a live pass
 - **Pre-move mode check** — performs a single HTTP `/track` query immediately before each antenna move to confirm the SAT is not tracking; no background polling
+- **Manual antenna control** — one-click panel to point the antenna manually at any time using a compass rose, a typed bearing, or a Maidenhead grid square; auto wind-tracking backs off automatically for the idle timeout after a manual command
 - **Voice pass alerts** — spoken announcement (`"<name> will be rising in <time>"`) on any `SAT,FAOS` broadcast within the configurable window (default 5 minutes to AOS); one alert per satellite per pass; announcements are serialised so two simultaneous passes never overlap; stale queued messages are discarded automatically
 - **Mute controls** — instant mute / unmute toggle, timed 30-minute mute with automatic re-arm, and a **Test Voice** button to verify your speaker before a pass
 - **GUI Settings dialog** — all configuration values editable at runtime via the **⚙ Settings** button; changes are saved to `csnSatGC.json` and take effect immediately
@@ -85,6 +87,7 @@ Settings are stored in `csnSatGC.json` in the same folder as the script and can 
 | `icao` | `CYYZ` | ICAO airport code for METAR weather fetch |
 | `announce_window_secs` | `300` | Only announce a pass if `timetogo` ≤ this value (5 min) |
 | `cooldown_secs` | `300` | Minimum seconds between repeat announcements for the same satellite |
+| `operator_grid` | *(blank)* | Your home Maidenhead grid square — used by the manual control bearing calculator |
 
 ---
 
@@ -95,7 +98,7 @@ Settings are stored in `csnSatGC.json` in the same folder as the script and can 
 Every `interval_sec` seconds the worker thread:
 
 1. Checks whether the operator has manually **paused** updates (⏸ button or `P` key)
-2. Checks whether the **antenna is in use** — a recent `SAT,START TRACK` / `SAT,AOS` UDP event or an `IDLE_TIMEOUT` that has not yet elapsed
+2. Checks whether the **antenna is in use** — a recent `SAT,START TRACK` / `SAT,AOS` UDP event, a manual command, or an `IDLE_TIMEOUT` that has not yet elapsed
 3. Fetches a fresh **METAR** from NOAA (`tgftp.nws.noaa.gov`), falling back to VATSIM
 4. Parses wind direction, speed, and gusts from the `dddssGggKT` group
 5. If wind **exceeds** threshold — performs a final mode check via HTTP `/track`, then **moves the antenna** to the wind bearing
@@ -143,6 +146,33 @@ CSNTracker broadcast:  SAT,FAOS,<name>,<az>,<timetogo>
 | `SAT,FAOS,name,az,timetogo` | Queues a voice announcement (see pipeline above) |
 
 After `idle_timeout` (default 5 min) with no new SAT events, the antenna is automatically considered free even if a `SAT,LOS` packet was missed.
+
+---
+
+## Manual Antenna Control
+
+Click **🎯 Manual** in the button bar to open the manual control panel. This lets you point the antenna to any bearing at any time without waiting for the next wind-tracking cycle.
+
+### Three ways to set a bearing
+
+**1. Compass rose**
+Click or drag anywhere on the compass to set a bearing. The cyan arrow updates live and the selected heading is displayed in the centre of the dial.
+
+**2. Direct heading entry**
+Type any value from 0 to 360° in the Azimuth field. The compass syncs immediately.
+
+**3. Grid square → bearing calculator**
+
+| Field | Description |
+|---|---|
+| My Grid | Your home Maidenhead locator (4 or 6 characters, e.g. `EN82` or `EN82lp`) — saved to config automatically |
+| Target Grid | The grid square you want to beam toward |
+
+Press **Calculate Bearing** (or Enter) and the great-circle bearing is computed and fed to both the compass and the heading field. Works with 4-character (1° square) and 6-character (2.5′ subsquare) locators.
+
+### Sending the command
+
+Click **⟳ Point Antenna** to send the PSTRotator azimuth command immediately. The keepalive thread holds the new position, and the auto wind-tracking loop backs off for `idle_timeout` seconds (default 5 min) before resuming normal operation.
 
 ---
 
@@ -201,6 +231,7 @@ HTTP requests are made **on-demand only** — there is no background polling thr
 | 🔊 Test Voice | Speak a test phrase — always fires, ignores mute |
 | 🔇 Mute Voice / 🔔 Unmute Voice | Toggle permanent voice mute |
 | ⏱ Mute 30 min | Mute for 30 minutes then automatically re-arm |
+| 🎯 Manual | Open the manual antenna control panel |
 | ⚙ Settings | Open the configuration dialog |
 
 ### Keyboard Shortcuts
