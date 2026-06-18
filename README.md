@@ -229,17 +229,32 @@ HTTP requests are made **on-demand only** — there is no background polling thr
 
 ### Button Bar
 
+The button bar contains the operational controls used most often during a pass.
+
 | Button | Action |
 |---|---|
 | ⏸ PAUSE | Suspend automatic wind updates |
 | ▶ RESUME | Resume automatic wind updates |
-| 🖥 Shortcut | Create a Windows desktop shortcut |
-| 🔊 Test Voice | Speak a test phrase — always fires, ignores mute |
 | 🔇 Mute Voice / 🔔 Unmute Voice | Toggle permanent voice mute |
 | ⏱ Mute 30 min | Mute for 30 minutes then automatically re-arm |
-| 🎯 Manual | Open the manual antenna control panel |
-| 🌐 CSN SAT | Open the CSN SAT web interface in your default browser |
-| ⚙ Settings | Open the configuration dialog |
+
+### Menus
+
+Secondary and configuration actions are in the menu bar.
+
+| Menu | Item | Action |
+|---|---|---|
+| Antenna | ⏸ Pause | Suspend automatic wind updates |
+| Antenna | ▶ Resume | Resume automatic wind updates |
+| Antenna | 🎯 Manual Control… | Open the manual antenna control panel |
+| Antenna | 🌐 Open CSN SAT UI | Open the CSN SAT web interface in your browser |
+| Voice | 🔊 Test Voice | Speak a test phrase — always fires, ignores mute |
+| Voice | 🔇 Mute / Unmute | Toggle permanent voice mute |
+| Voice | ⏱ Mute 30 Minutes | Mute for 30 minutes then automatically re-arm |
+| Tools | ⚙ Settings… | Open the configuration dialog |
+| Tools | 🖥 Create Desktop Shortcut | Create a Windows desktop shortcut |
+| Help | About… | Show version, author, and licence information |
+| Help | Exit | Close the application |
 
 ### Keyboard Shortcuts
 
