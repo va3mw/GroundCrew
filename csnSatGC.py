@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-S.A.T. GroundCrew  v2.3
+S.A.T. GroundCrew  v2.4
 ========================
 Satellite Antenna Tracker — Ground operations assistant for amateur satellite
 station operators.
 
 Author  : Michael Walker · VA3MW · Toronto, Ontario, Canada
-Version : 2.3 · 2026-03-19
+Version : 2.4 · 2026-06-18
 File    : csnSatGC.py
 
 -------------------------------------------------------------------------------
@@ -189,6 +189,7 @@ LICENSE
 """
 
 import json
+import math
 import pathlib
 import queue
 import re
@@ -205,7 +206,7 @@ from datetime import datetime
 import requests
 
 
-VERSION = "2.3"
+VERSION = "2.4"
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  CONFIGURATION  ←  edit these values to match your setup
@@ -245,6 +246,7 @@ CFG_DEFAULTS: dict = {
     "icao":                 "CYYZ",
     "announce_window_secs": 300,
     "cooldown_secs":        300,
+    "operator_grid":        "",
 }
 
 
@@ -586,6 +588,8 @@ class App:
         # Settings dialog
         tk.Frame(btn_row, bg=C_BORDER, width=1).pack(
             side="left", fill="y", padx=16, pady=4)
+        self._button(btn_row, "🎯  Manual",   "#1a2a0a", C_GREEN,
+                     self._do_manual_control).pack(side="left", padx=(0, 8))
         self._button(btn_row, "⚙  Settings", "#1a1a2a", "#7aaabf",
                      self._do_settings).pack(side="left", padx=(0, 8))
 
@@ -780,6 +784,313 @@ class App:
         self._v_el,     _              = self._field(c, "Elevation",   1, "0.0°")
         self._v_moved,  _              = self._field(c, "Last moved",  2, "Never")
         self._v_action, self._l_action = self._field(c, "Last action", 3)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  GRID SQUARE HELPERS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    @staticmethod
+    def _grid_to_latlon(grid: str) -> tuple:
+        """Convert a 4- or 6-character Maidenhead locator to (lat, lon) centre."""
+        g = grid.upper().strip()
+        if len(g) < 4:
+            raise ValueError("need at least 4 characters")
+        if not (g[0].isalpha() and g[1].isalpha()):
+            raise ValueError("first two characters must be letters (field)")
+        if not (g[2].isdigit() and g[3].isdigit()):
+            raise ValueError("third and fourth characters must be digits (square)")
+        lon = (ord(g[0]) - ord('A')) * 20 - 180
+        lat = (ord(g[1]) - ord('A')) * 10 - 90
+        lon += int(g[2]) * 2
+        lat += int(g[3])
+        if len(g) >= 6:
+            if not (g[4].isalpha() and g[5].isalpha()):
+                raise ValueError("fifth and sixth characters must be letters (subsquare)")
+            lon += (ord(g[4].lower()) - ord('a')) * (5 / 60)
+            lat += (ord(g[5].lower()) - ord('a')) * (2.5 / 60)
+            lon += 2.5 / 60    # centre of subsquare
+            lat += 1.25 / 60
+        else:
+            lon += 1.0         # centre of square
+            lat += 0.5
+        return lat, lon
+
+    @staticmethod
+    def _calc_bearing(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        """Return the initial great-circle bearing (°, 0–360) from point 1 to point 2."""
+        φ1 = math.radians(lat1)
+        φ2 = math.radians(lat2)
+        Δλ = math.radians(lon2 - lon1)
+        x = math.sin(Δλ) * math.cos(φ2)
+        y = math.cos(φ1) * math.sin(φ2) - math.sin(φ1) * math.cos(φ2) * math.cos(Δλ)
+        return (math.degrees(math.atan2(x, y)) + 360) % 360
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  MANUAL CONTROL DIALOG
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _do_manual_control(self):
+        """
+        Modal dialog for one-shot manual antenna positioning.
+
+        Three ways to set azimuth:
+          1. Click or drag on the compass rose.
+          2. Type a bearing (0–360°) directly.
+          3. Enter home + target Maidenhead grid squares → bearing is calculated
+             and fed back to the compass and entry field.
+
+        Clicking "Point Antenna" sends an immediate PSTRotator command, updates
+        _last_az so the keepalive holds the position, and stamps _last_cmd_time
+        so the automatic wind-tracking loop backs off for idle_timeout seconds.
+        """
+        dlg = tk.Toplevel(self.root)
+        dlg.title("Manual Antenna Control")
+        dlg.configure(bg=C_BG)
+        dlg.resizable(False, False)
+        dlg.grab_set()
+        dlg.lift()
+
+        az_var = tk.DoubleVar(value=0.0)
+
+        # ── Compass canvas ────────────────────────────────────────────────────
+        CX, CY, R = 120, 120, 100
+        SIZE = 240
+
+        compass_frame = tk.Frame(dlg, bg=C_BG)
+        compass_frame.pack(side="left", padx=(16, 8), pady=16, anchor="n")
+        tk.Label(compass_frame, text="COMPASS", bg=C_BG, fg=C_DIM,
+                 font=("Segoe UI", 8, "bold")).pack(pady=(0, 4))
+
+        canvas = tk.Canvas(compass_frame, width=SIZE, height=SIZE,
+                           bg=C_PANEL,
+                           highlightthickness=1, highlightbackground=C_BORDER)
+        canvas.pack()
+
+        def _draw_compass(az=None):
+            canvas.delete("all")
+            canvas.create_oval(CX - R, CY - R, CX + R, CY + R,
+                               outline=C_BORDER, width=2)
+            for deg in range(0, 360, 5):
+                rad = math.radians(deg)
+                inner = R - (14 if deg % 90 == 0 else 8 if deg % 30 == 0
+                             else 5 if deg % 10 == 0 else 3)
+                x1 = CX + inner * math.sin(rad)
+                y1 = CY - inner * math.cos(rad)
+                x2 = CX + R * math.sin(rad)
+                y2 = CY - R * math.cos(rad)
+                w = 2 if deg % 90 == 0 else 1
+                col = C_TEXT if deg % 90 == 0 else C_DIM
+                canvas.create_line(x1, y1, x2, y2, fill=col, width=w)
+            for label, deg in [("N", 0), ("E", 90), ("S", 180), ("W", 270)]:
+                rad = math.radians(deg)
+                x = CX + (R - 22) * math.sin(rad)
+                y = CY - (R - 22) * math.cos(rad)
+                col = C_RED if label == "N" else C_TEXT
+                canvas.create_text(x, y, text=label, fill=col,
+                                   font=("Segoe UI", 10, "bold"))
+            for deg in range(30, 360, 30):
+                if deg % 90 == 0:
+                    continue
+                rad = math.radians(deg)
+                x = CX + (R - 18) * math.sin(rad)
+                y = CY - (R - 18) * math.cos(rad)
+                canvas.create_text(x, y, text=str(deg), fill=C_DIM,
+                                   font=("Segoe UI", 7))
+            canvas.create_oval(CX - 3, CY - 3, CX + 3, CY + 3,
+                               fill=C_DIM, outline="")
+            if az is not None:
+                rad = math.radians(az)
+                ex = CX + (R - 10) * math.sin(rad)
+                ey = CY - (R - 10) * math.cos(rad)
+                canvas.create_line(CX, CY, ex, ey,
+                                   fill=C_CYAN, width=2,
+                                   arrow="last", arrowshape=(10, 12, 4))
+                canvas.create_text(CX, CY + 20, text=f"{az:.1f}°",
+                                   fill=C_CYAN,
+                                   font=("Segoe UI", 11, "bold"))
+
+        _draw_compass(0.0)
+
+        def _on_compass_click(event):
+            dx, dy = event.x - CX, event.y - CY
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist < 8 or dist > R + 12:
+                return
+            az = (math.degrees(math.atan2(dx, -dy)) + 360) % 360
+            az = round(az, 1)
+            az_var.set(az)
+            _az_entry_var.set(f"{az:.1f}")
+            _draw_compass(az)
+
+        canvas.bind("<Button-1>", _on_compass_click)
+        canvas.bind("<B1-Motion>", _on_compass_click)
+
+        # ── Right panel ───────────────────────────────────────────────────────
+        right = tk.Frame(dlg, bg=C_BG)
+        right.pack(side="left", padx=(8, 16), pady=16, fill="both", expand=True)
+
+        # Heading entry
+        tk.Frame(right, bg=C_HDR).pack(fill="x")
+        hdr = tk.Frame(right, bg=C_HDR)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text="  BEAM HEADING", bg=C_HDR, fg="#aac8df",
+                 font=("Segoe UI", 9, "bold")).pack(side="left", pady=4)
+
+        head_body = tk.Frame(right, bg=C_PANEL, padx=14, pady=12)
+        head_body.pack(fill="x")
+
+        tk.Label(head_body, text="Azimuth:", bg=C_PANEL, fg=C_DIM,
+                 font=("Segoe UI", 9)).grid(row=0, column=0, sticky="w",
+                                            padx=(0, 8))
+        _az_entry_var = tk.StringVar(value="0.0")
+        az_entry = tk.Entry(head_body, textvariable=_az_entry_var,
+                            bg=C_BG, fg=C_TEXT, insertbackground=C_TEXT,
+                            font=("Segoe UI", 14, "bold"), width=7,
+                            relief="flat", justify="center")
+        az_entry.grid(row=0, column=1, sticky="w")
+        tk.Label(head_body, text="°", bg=C_PANEL, fg=C_TEXT,
+                 font=("Segoe UI", 14)).grid(row=0, column=2, sticky="w",
+                                             padx=(2, 0))
+
+        def _on_az_entry(*_):
+            try:
+                az = float(_az_entry_var.get())
+                az = az % 360
+                az_var.set(az)
+                _draw_compass(az)
+            except ValueError:
+                pass
+
+        _az_entry_var.trace_add("write", _on_az_entry)
+
+        # Grid square section
+        tk.Frame(right, bg=C_BORDER, height=1).pack(fill="x", pady=(10, 0))
+        grid_hdr = tk.Frame(right, bg=C_HDR)
+        grid_hdr.pack(fill="x")
+        tk.Label(grid_hdr, text="  GRID SQUARE → BEARING", bg=C_HDR,
+                 fg="#aac8df",
+                 font=("Segoe UI", 9, "bold")).pack(side="left", pady=4)
+
+        grid_body = tk.Frame(right, bg=C_PANEL, padx=14, pady=10)
+        grid_body.pack(fill="x")
+        grid_body.columnconfigure(1, weight=1)
+
+        tk.Label(grid_body, text="My Grid:", bg=C_PANEL, fg=C_DIM,
+                 font=("Segoe UI", 9), width=11,
+                 anchor="w").grid(row=0, column=0, sticky="w", pady=3)
+        home_grid_var = tk.StringVar(value=self._cfg.get("operator_grid", ""))
+        home_entry = tk.Entry(grid_body, textvariable=home_grid_var,
+                              bg=C_BG, fg=C_TEXT, insertbackground=C_TEXT,
+                              font=self._mono_font(11), width=9, relief="flat")
+        home_entry.grid(row=0, column=1, sticky="w", padx=(4, 0), pady=3)
+
+        tk.Label(grid_body, text="Target Grid:", bg=C_PANEL, fg=C_DIM,
+                 font=("Segoe UI", 9), width=11,
+                 anchor="w").grid(row=1, column=0, sticky="w", pady=3)
+        target_grid_var = tk.StringVar()
+        target_entry = tk.Entry(grid_body, textvariable=target_grid_var,
+                                bg=C_BG, fg=C_TEXT, insertbackground=C_TEXT,
+                                font=self._mono_font(11), width=9, relief="flat")
+        target_entry.grid(row=1, column=1, sticky="w", padx=(4, 0), pady=3)
+
+        bearing_var = tk.StringVar(value="—")
+        bearing_lbl = tk.Label(grid_body, textvariable=bearing_var,
+                               bg=C_PANEL, fg=C_CYAN,
+                               font=self._mono_font(11))
+        bearing_lbl.grid(row=2, column=0, columnspan=2, sticky="w",
+                         pady=(6, 0))
+
+        grid_err_var = tk.StringVar()
+        tk.Label(grid_body, textvariable=grid_err_var, bg=C_PANEL, fg=C_RED,
+                 font=("Segoe UI", 8)
+                 ).grid(row=3, column=0, columnspan=2, sticky="w")
+
+        def _calc_grid():
+            grid_err_var.set("")
+            home   = home_grid_var.get().strip()
+            target = target_grid_var.get().strip()
+            try:
+                hlat, hlon = self._grid_to_latlon(home)
+            except Exception as exc:
+                grid_err_var.set(f"My grid: {exc}")
+                return
+            try:
+                tlat, tlon = self._grid_to_latlon(target)
+            except Exception as exc:
+                grid_err_var.set(f"Target grid: {exc}")
+                return
+            brg = round(self._calc_bearing(hlat, hlon, tlat, tlon), 1)
+            bearing_var.set(f"Bearing:  {brg}°")
+            az_var.set(brg)
+            _az_entry_var.set(f"{brg:.1f}")
+            _draw_compass(brg)
+            self._cfg["operator_grid"] = home.upper()
+            _save_cfg(self._cfg)
+
+        tk.Button(grid_body, text="Calculate Bearing",
+                  command=_calc_grid,
+                  bg="#1a1a2e", fg=C_CYAN,
+                  activebackground="#1a1a2e", activeforeground=C_CYAN,
+                  font=("Segoe UI", 9, "bold"),
+                  relief="flat", pady=5, cursor="hand2", bd=0
+                  ).grid(row=4, column=0, columnspan=2, sticky="ew",
+                         pady=(10, 0))
+
+        home_entry.bind("<Return>",   lambda _: _calc_grid())
+        target_entry.bind("<Return>", lambda _: _calc_grid())
+
+        # ── Bottom action row ─────────────────────────────────────────────────
+        tk.Frame(dlg, bg=C_BORDER, height=1).pack(fill="x", pady=(8, 0))
+        btn_frame = tk.Frame(dlg, bg=C_BG, pady=10)
+        btn_frame.pack(fill="x", padx=16)
+
+        status_var = tk.StringVar()
+        tk.Label(btn_frame, textvariable=status_var,
+                 bg=C_BG, fg=C_GREEN,
+                 font=("Segoe UI", 9)).pack(pady=(0, 6))
+
+        def _point():
+            az = az_var.get()
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as tx:
+                    for inner in ("<ELEVATION>0.0</ELEVATION>",
+                                  f"<AZIMUTH>{az:.1f}</AZIMUTH>"):
+                        payload = f"<PST>{inner}</PST>"
+                        tx.sendto(payload.encode("ascii"),
+                                  (self._sat_host, self._cfg["sat_port"]))
+                with self._az_lock:
+                    self._last_az = int(round(az))
+                    self._at_park = False
+                with self._cmd_lock:
+                    self._last_cmd_time = time.time()
+                self._log("INFO", f"[manual] Operator commanded azimuth {az:.1f}°")
+
+                def _ui():
+                    self._v_az.set(f"{az:.1f}°")
+                    self._l_az.configure(fg=C_CYAN)
+                    self._v_moved.set(datetime.now().strftime("%H:%M:%S"))
+                    self._v_action.set(f"MANUAL → {az:.1f}°")
+                    self._l_action.configure(fg=C_CYAN)
+                self.root.after(0, _ui)
+                status_var.set(f"✓  Antenna commanded to {az:.1f}°")
+            except Exception as exc:
+                self._log("ERROR", f"[manual] Send failed: {exc}")
+                status_var.set(f"Error: {exc}")
+
+        tk.Button(btn_frame, text="⟳  Point Antenna",
+                  command=_point,
+                  bg="#0d2a1a", fg=C_GREEN,
+                  activebackground="#0d2a1a", activeforeground=C_GREEN,
+                  font=("Segoe UI", 11, "bold"),
+                  relief="flat", pady=8, cursor="hand2", bd=0,
+                  width=20).pack(side="left", padx=(0, 8))
+        tk.Button(btn_frame, text="Close",
+                  command=dlg.destroy,
+                  bg=C_PANEL, fg=C_DIM,
+                  activebackground=C_PANEL, activeforeground=C_TEXT,
+                  font=("Segoe UI", 10),
+                  relief="flat", pady=8, cursor="hand2", bd=0,
+                  width=8).pack(side="left")
 
     # ══════════════════════════════════════════════════════════════════════════
     #  RECURRING GUI CALLBACKS
@@ -1196,6 +1507,7 @@ class App:
             ]),
             ("WEATHER", [
                 ("ICAO Station",        "icao",           ""),
+                ("Home Grid Square",    "operator_grid",  ""),
             ]),
         ]
 
