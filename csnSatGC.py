@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-S.A.T. GroundCrew  v2.4
+S.A.T. GroundCrew  v3.0
 ========================
 Satellite Antenna Tracker — Ground operations assistant for amateur satellite
 station operators.
 
 Author  : Michael Walker · VA3MW · Toronto, Ontario, Canada
-Version : 2.4 · 2026-06-18
+Version : 3.0 · 2026-06-18
 File    : csnSatGC.py
 
 -------------------------------------------------------------------------------
@@ -206,7 +206,7 @@ from datetime import datetime
 import requests
 
 
-VERSION = "2.4"
+VERSION = "3.0"
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  CONFIGURATION  ←  edit these values to match your setup
