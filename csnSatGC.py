@@ -975,22 +975,28 @@ class App:
         grid_body.pack(fill="x")
         grid_body.columnconfigure(1, weight=1)
 
-        tk.Label(grid_body, text="My Grid:", bg=C_PANEL, fg=C_DIM,
-                 font=("Segoe UI", 9), width=11,
+        tk.Label(grid_body, text="My Grid:", bg=C_PANEL, fg=C_TEXT,
+                 font=("Segoe UI", 9, "bold"), width=11,
                  anchor="w").grid(row=0, column=0, sticky="w", pady=3)
         home_grid_var = tk.StringVar(value=self._cfg.get("operator_grid", ""))
         home_entry = tk.Entry(grid_body, textvariable=home_grid_var,
-                              bg=C_BG, fg=C_TEXT, insertbackground=C_TEXT,
-                              font=self._mono_font(11), width=9, relief="flat")
+                              bg="#3c3c3c", fg=C_TEXT, insertbackground=C_TEXT,
+                              font=self._mono_font(11), width=9, relief="flat",
+                              highlightthickness=1,
+                              highlightbackground=C_CYAN,
+                              highlightcolor=C_CYAN)
         home_entry.grid(row=0, column=1, sticky="w", padx=(4, 0), pady=3)
 
-        tk.Label(grid_body, text="Target Grid:", bg=C_PANEL, fg=C_DIM,
-                 font=("Segoe UI", 9), width=11,
+        tk.Label(grid_body, text="Target Grid:", bg=C_PANEL, fg=C_TEXT,
+                 font=("Segoe UI", 9, "bold"), width=11,
                  anchor="w").grid(row=1, column=0, sticky="w", pady=3)
         target_grid_var = tk.StringVar()
         target_entry = tk.Entry(grid_body, textvariable=target_grid_var,
-                                bg=C_BG, fg=C_TEXT, insertbackground=C_TEXT,
-                                font=self._mono_font(11), width=9, relief="flat")
+                                bg="#3c3c3c", fg=C_TEXT, insertbackground=C_TEXT,
+                                font=self._mono_font(11), width=9, relief="flat",
+                                highlightthickness=1,
+                                highlightbackground=C_CYAN,
+                                highlightcolor=C_CYAN)
         target_entry.grid(row=1, column=1, sticky="w", padx=(4, 0), pady=3)
 
         bearing_var = tk.StringVar(value="—")
