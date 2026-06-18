@@ -4,7 +4,7 @@
 
 **Author:** Michael Walker &nbsp;·&nbsp; VA3MW &nbsp;·&nbsp; Toronto, Ontario, Canada
 **Built with:** [Claude](https://claude.ai) (Anthropic) — AI pair programmer
-**Version:** 3.0 &nbsp;·&nbsp; 2026-06-18
+**Version:** 3.0.01 &nbsp;·&nbsp; 2026-06-18
 **File:** `csnSatGC.py`
 **License** Personal / amateur radio use. © 2026 Michael Walker VA3MW
 
