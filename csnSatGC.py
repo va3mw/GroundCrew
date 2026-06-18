@@ -687,6 +687,10 @@ class App:
         m_ant.add_separator()
         m_ant.add_command(label="🎯  Manual Control…",  command=self._do_manual_control)
         m_ant.add_command(label="🌐  Open CSN SAT UI",  command=self._do_open_sat)
+        m_ant.add_separator()
+        m_ant.add_command(label="📡  PSK Reporter",
+                          command=lambda: webbrowser.open(
+                              "https://pskreporter.info/pskmap.html"))
 
         # ── Voice ─────────────────────────────────────────────────────────────
         m_voice = tk.Menu(menubar, tearoff=0,
