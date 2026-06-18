@@ -464,8 +464,9 @@ class App:
         self._q             = queue.Queue()
         self._paused        = False
         self._pause_lock    = threading.Lock()
-        self._last_cmd_time = 0.0           # epoch of last antenna-use event
-        self._cmd_lock      = threading.Lock()
+        self._last_cmd_time    = 0.0   # epoch of last SAT/antenna-use event
+        self._manual_lock_until = 0.0  # epoch until which manual override blocks auto moves
+        self._cmd_lock         = threading.Lock()
         self._next_check_at = time.time()
         self._wake          = threading.Event()  # set to interrupt worker sleep
 
@@ -1140,7 +1141,8 @@ class App:
                     self._last_az = int(round(az))
                     self._at_park = False
                 with self._cmd_lock:
-                    self._last_cmd_time = time.time()
+                    self._last_cmd_time     = time.time()
+                    self._manual_lock_until = time.time() + self._cfg["idle_timeout"]
                 self._log("INFO", f"[manual] Operator commanded azimuth {az:.1f}°")
 
                 def _ui():
@@ -2122,10 +2124,20 @@ class App:
                 with self._pause_lock:
                     paused = self._paused
 
+                with self._cmd_lock:
+                    manual_locked = time.time() < self._manual_lock_until
+
                 # Guard 1: manually paused?
                 if paused:
                     self._log("INFO", "[main] SKIPPED — paused by operator.")
                     self._ui_skipped("paused")
+
+                # Guard 1b: manual override still active — LOS events must not clear this
+                elif manual_locked:
+                    remaining = int(self._manual_lock_until - time.time())
+                    self._log("INFO",
+                        f"[main] SKIPPED — manual override active ({remaining}s remaining).")
+                    self._ui_skipped("manual override")
 
                 # Guard 2: antenna in use by satellite tracker or other app?
                 elif (self._last_cmd_time > 0 and
